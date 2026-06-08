@@ -15,6 +15,17 @@
   let contrast = 1.0;
   let invert = false;
   let trimTrailing = true;
+  let alignmentSetting = 'left';
+  let inputMode = 'image';
+  let inputText = 'STEAM';
+  let textFont = 'Impact';
+  let textSize = 48;
+  let textBold = true;
+  let textItalic = false;
+  let textOutline = false;
+  let textOutlineWidth = 2;
+  let textBorder = false;
+
 
   // Output
   let asciiLines = [];
@@ -53,8 +64,26 @@
     }
   }
 
-  // Reactively regenerate ASCII when settings or image change
-  $: if (imageEl && (asciiWidth || stretchFactor || selectedPaletteKey || brightness || contrast || invert || trimTrailing)) {
+  // Reactively regenerate ASCII when settings or image/text change
+  $: if ((imageEl || inputMode === 'text') && (
+    asciiWidth || 
+    stretchFactor || 
+    selectedPaletteKey || 
+    brightness || 
+    contrast || 
+    invert || 
+    trimTrailing || 
+    inputMode || 
+    inputText || 
+    textFont || 
+    textSize || 
+    textBold || 
+    textItalic || 
+    textOutline || 
+    textOutlineWidth || 
+    textBorder || 
+    alignmentSetting
+  )) {
     generateAscii();
   }
 
@@ -129,12 +158,62 @@
   }
 
   function generateAscii() {
-    if (!imageEl) return;
+    if (inputMode === 'image' && !imageEl) return;
+    
+    let sourceEl;
+    if (inputMode === 'text') {
+      const textCanvas = document.createElement('canvas');
+      const textCtx = textCanvas.getContext('2d');
+      
+      const textToRender = inputText || ' ';
+      const fontStr = `${textItalic ? 'italic ' : ''}${textBold ? 'bold ' : ''}${textSize}px ${textFont}`;
+      textCtx.font = fontStr;
+      
+      const metrics = textCtx.measureText(textToRender);
+      const textWidth = Math.ceil(metrics.width);
+      const textHeight = Math.ceil(textSize * 1.2);
+      
+      const padding = 24;
+      textCanvas.width = textWidth + padding * 2;
+      textCanvas.height = textHeight + padding * 2;
+      
+      textCtx.fillStyle = '#000000';
+      textCtx.fillRect(0, 0, textCanvas.width, textCanvas.height);
+      
+      textCtx.font = fontStr;
+      textCtx.textAlign = 'center';
+      textCtx.textBaseline = 'middle';
+      
+      const x = textCanvas.width / 2;
+      const y = textCanvas.height / 2;
+      
+      if (textOutline) {
+        textCtx.strokeStyle = '#ffffff';
+        textCtx.lineWidth = textOutlineWidth;
+        textCtx.strokeText(textToRender, x, y);
+      } else {
+        textCtx.fillStyle = '#ffffff';
+        textCtx.fillText(textToRender, x, y);
+      }
+      
+      if (textBorder) {
+        textCtx.strokeStyle = '#ffffff';
+        textCtx.lineWidth = 4;
+        textCtx.strokeRect(4, 4, textCanvas.width - 8, textCanvas.height - 8);
+      }
+      
+      sourceEl = textCanvas;
+    } else {
+      sourceEl = imageEl;
+    }
     
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
     
-    const originalAspect = imageHeight / imageWidth;
+    const widthSrc = inputMode === 'text' ? sourceEl.width : imageEl.naturalWidth || imageEl.width;
+    const heightSrc = inputMode === 'text' ? sourceEl.height : imageEl.naturalHeight || imageEl.height;
+    
+    const originalAspect = heightSrc / widthSrc;
     const contrastFactor = (259 * (contrast * 255 + 255)) / (255 * (259 - contrast * 255));
     
     let targetHeight;
@@ -153,11 +232,12 @@
     canvas.width = canvasWidth;
     canvas.height = canvasHeight;
     
-    ctx.drawImage(imageEl, 0, 0, canvasWidth, canvasHeight);
+    ctx.drawImage(sourceEl, 0, 0, canvasWidth, canvasHeight);
     const imgData = ctx.getImageData(0, 0, canvasWidth, canvasHeight);
     const pixels = imgData.data;
     
     const newLines = [];
+    const spaceChar = selectedPaletteKey === 'braille' ? '⠀' : '　';
     
     if (selectedPaletteKey === 'braille') {
       for (let y = 0; y < targetHeight; y++) {
@@ -199,13 +279,33 @@
         }
         
         let lineText = lineChars.join('');
-        if (trimTrailing) {
-          while (lineText.endsWith('　') || lineText.endsWith('⠀')) {
-            lineText = lineText.slice(0, -1);
-          }
+        // Trim trailing spaces first to get core content width
+        while (lineText.endsWith(spaceChar) || lineText.endsWith('　')) {
+          lineText = lineText.slice(0, -1);
         }
-        if (lineText === '') {
-          lineText = '⠀'; // Preserve blank line with Braille blank so Steam doesn't collapse it
+        
+        const contentLen = lineText.length;
+        if (contentLen === 0) {
+          lineText = spaceChar;
+        } else {
+          // Align left / center / right
+          let leftPaddingCount = 0;
+          if (alignmentSetting === 'center') {
+            leftPaddingCount = Math.floor((asciiWidth - contentLen) / 2);
+          } else if (alignmentSetting === 'right') {
+            leftPaddingCount = asciiWidth - contentLen;
+          }
+          
+          if (leftPaddingCount > 0) {
+            lineText = spaceChar.repeat(leftPaddingCount) + lineText;
+          }
+          
+          if (!trimTrailing) {
+            const currentLen = lineText.length;
+            if (currentLen < asciiWidth) {
+              lineText = lineText + spaceChar.repeat(asciiWidth - currentLen);
+            }
+          }
         }
         newLines.push(lineText);
       }
@@ -231,13 +331,33 @@
         }
         
         let lineText = lineChars.join('');
-        if (trimTrailing) {
-          while (lineText.endsWith('　')) {
-            lineText = lineText.slice(0, -1);
-          }
+        // Trim trailing spaces first to get core content width
+        while (lineText.endsWith(spaceChar)) {
+          lineText = lineText.slice(0, -1);
         }
-        if (lineText === '') {
-          lineText = '　'; // Preserve blank line with Zenkaku space so Steam doesn't collapse it
+        
+        const contentLen = lineText.length;
+        if (contentLen === 0) {
+          lineText = spaceChar;
+        } else {
+          // Align left / center / right
+          let leftPaddingCount = 0;
+          if (alignmentSetting === 'center') {
+            leftPaddingCount = Math.floor((asciiWidth - contentLen) / 2);
+          } else if (alignmentSetting === 'right') {
+            leftPaddingCount = asciiWidth - contentLen;
+          }
+          
+          if (leftPaddingCount > 0) {
+            lineText = spaceChar.repeat(leftPaddingCount) + lineText;
+          }
+          
+          if (!trimTrailing) {
+            const currentLen = lineText.length;
+            if (currentLen < asciiWidth) {
+              lineText = lineText + spaceChar.repeat(asciiWidth - currentLen);
+            }
+          }
         }
         newLines.push(lineText);
       }
@@ -346,34 +466,137 @@
   <main class="max-w-7xl mx-auto px-6 mt-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
     <!-- Configuration Sidebar -->
     <div class="lg:col-span-4 space-y-6">
-      <!-- Image Upload Panel -->
+      <!-- Input Source Panel -->
       <div class="glass-panel rounded-2xl p-6 space-y-4">
-        <h2 class="text-sm font-semibold uppercase tracking-wider text-[#66c0f4] mb-2">1. Image Input</h2>
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-[#66c0f4] mb-2">1. Input Source</h2>
         
-        <div 
-          role="region"
-          aria-label="Image drag and drop zone"
-          on:drop={handleDrop}
-          on:dragover={handleDragOver}
-          class="border-2 border-dashed border-[#2a475e] hover:border-[#66c0f4] rounded-xl p-8 text-center cursor-pointer transition-all bg-[#101822]/40 relative group"
-        >
-          <input type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" on:change={handleFileChange} />
-          <div class="space-y-2">
-            <svg width="32" height="32" class="text-[#2a475e] group-hover:text-[#66c0f4] mx-auto transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-            </svg>
-            <div class="text-xs text-white font-medium">Drag & drop image here or click to browse</div>
-            <div class="text-[10px] text-zinc-500">Supports PNG, JPG, WebP</div>
-          </div>
+        <!-- Tab Switcher -->
+        <div class="flex border-b border-[#2a475e]/30 mb-2">
+          <button 
+            on:click={() => inputMode = 'image'}
+            class="flex-1 py-2 text-xs font-semibold border-b-2 transition-all {inputMode === 'image' ? 'border-[#66c0f4] text-[#66c0f4] bg-[#66c0f4]/5' : 'border-transparent text-zinc-400 hover:text-white'}"
+          >
+            🖼️ Image Input
+          </button>
+          <button 
+            on:click={() => inputMode = 'text'}
+            class="flex-1 py-2 text-xs font-semibold border-b-2 transition-all {inputMode === 'text' ? 'border-[#66c0f4] text-[#66c0f4] bg-[#66c0f4]/5' : 'border-transparent text-zinc-400 hover:text-white'}"
+          >
+            ✍️ Text Input
+          </button>
         </div>
 
-        {#if imageEl}
-          <div class="flex items-center justify-between p-3 rounded-lg bg-[#101822]/80 border border-[#2a475e]/30 text-xs">
-            <div class="min-w-0 flex-1">
-              <div class="text-white font-semibold truncate">{imageName}</div>
-              <div class="text-zinc-500 text-[10px] mt-0.5">{imageWidth} × {imageHeight} pixels</div>
+        {#if inputMode === 'image'}
+          <div 
+            role="region"
+            aria-label="Image drag and drop zone"
+            on:drop={handleDrop}
+            on:dragover={handleDragOver}
+            class="border-2 border-dashed border-[#2a475e] hover:border-[#66c0f4] rounded-xl p-8 text-center cursor-pointer transition-all bg-[#101822]/40 relative group"
+          >
+            <input type="file" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" on:change={handleFileChange} />
+            <div class="space-y-2">
+              <svg width="32" height="32" class="text-[#2a475e] group-hover:text-[#66c0f4] mx-auto transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+              <div class="text-xs text-white font-medium">Drag & drop image here or click to browse</div>
+              <div class="text-[10px] text-zinc-500">Supports PNG, JPG, WebP</div>
             </div>
-            <button on:click={loadSampleImage} class="text-[10px] text-[#66c0f4] hover:underline ml-4 shrink-0">Use demo image</button>
+          </div>
+
+          {#if imageEl}
+            <div class="flex items-center justify-between p-3 rounded-lg bg-[#101822]/80 border border-[#2a475e]/30 text-xs">
+              <div class="min-w-0 flex-1">
+                <div class="text-white font-semibold truncate">{imageName}</div>
+                <div class="text-zinc-500 text-[10px] mt-0.5">{imageWidth} × {imageHeight} pixels</div>
+              </div>
+              <button on:click={loadSampleImage} class="text-[10px] text-[#66c0f4] hover:underline ml-4 shrink-0">Use demo image</button>
+            </div>
+          {/if}
+        {:else}
+          <!-- Text Mode Inputs -->
+          <div class="space-y-3.5">
+            <div class="space-y-1">
+              <label for="text-input" class="text-xs text-zinc-400 font-medium">Render Text</label>
+              <input 
+                id="text-input"
+                type="text" 
+                bind:value={inputText} 
+                placeholder="Type text..."
+                class="w-full text-xs bg-[#101822] border border-[#2a475e]/60 rounded-lg p-2.5 text-white outline-none focus:border-[#66c0f4]"
+              />
+            </div>
+            
+            <div class="grid grid-cols-1 gap-3">
+              <div class="space-y-1">
+                <label for="text-font" class="text-xs text-zinc-400 font-medium">Font Family</label>
+                <select id="text-font" bind:value={textFont} class="w-full text-xs bg-[#101822] border border-[#2a475e]/60 rounded-lg p-2.5 text-white outline-none focus:border-[#66c0f4]">
+                  <option value="Impact">Impact (Heavy Sans)</option>
+                  <option value="Arial Black">Arial Black (Thick Sans)</option>
+                  <option value="Courier New">Courier New (Monospace)</option>
+                  <option value="Georgia">Georgia (Classy Serif)</option>
+                  <option value="Times New Roman">Times New Roman (Classic Serif)</option>
+                  <option value="Trebuchet MS">Trebuchet MS (Sans-Serif)</option>
+                </select>
+              </div>
+              
+              <div class="space-y-1.5">
+                <div class="flex justify-between text-xs">
+                  <label for="text-size" class="text-zinc-400 font-medium">Font Size</label>
+                  <span class="text-white font-mono font-semibold">{textSize}px</span>
+                </div>
+                <input 
+                  id="text-size"
+                  type="range" 
+                  min="20" 
+                  max="120" 
+                  bind:value={textSize} 
+                  class="w-full h-1 bg-[#101822] rounded-lg appearance-none cursor-pointer accent-[#66c0f4]"
+                />
+              </div>
+            </div>
+
+            <!-- Styles & Options -->
+            <div class="pt-3 border-t border-[#2a475e]/30 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                  <input type="checkbox" bind:checked={textBold} class="rounded border-[#2a475e] bg-[#101822] text-[#66c0f4] focus:ring-0" />
+                  Bold Font
+                </label>
+                <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                  <input type="checkbox" bind:checked={textItalic} class="rounded border-[#2a475e] bg-[#101822] text-[#66c0f4] focus:ring-0" />
+                  Italic Font
+                </label>
+              </div>
+
+              <div class="flex items-center justify-between">
+                <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                  <input type="checkbox" bind:checked={textOutline} class="rounded border-[#2a475e] bg-[#101822] text-[#66c0f4] focus:ring-0" />
+                  Outline Mode
+                </label>
+                <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+                  <input type="checkbox" bind:checked={textBorder} class="rounded border-[#2a475e] bg-[#101822] text-[#66c0f4] focus:ring-0" />
+                  Frame Border
+                </label>
+              </div>
+
+              {#if textOutline}
+                <div class="space-y-1.5 pt-1">
+                  <div class="flex justify-between text-[11px]">
+                    <label for="outline-width" class="text-zinc-500">Outline Stroke Thickness</label>
+                    <span class="text-white font-mono font-semibold">{textOutlineWidth}px</span>
+                  </div>
+                  <input 
+                    id="outline-width"
+                    type="range" 
+                    min="1" 
+                    max="8" 
+                    bind:value={textOutlineWidth} 
+                    class="w-full h-1 bg-[#101822] rounded-lg appearance-none cursor-pointer accent-[#66c0f4]" 
+                  />
+                </div>
+              {/if}
+            </div>
           </div>
         {/if}
       </div>
@@ -443,6 +666,16 @@
           </select>
         </div>
 
+        <!-- Showcase Alignment -->
+        <div class="space-y-1.5">
+          <label for="select-alignment" class="block text-xs text-zinc-400 font-medium">Showcase Alignment</label>
+          <select id="select-alignment" bind:value={alignmentSetting} class="w-full text-xs bg-[#101822] border border-[#2a475e]/60 rounded-lg p-2.5 text-white outline-none focus:border-[#66c0f4]">
+            <option value="left">Left Align</option>
+            <option value="center">Center Align</option>
+            <option value="right">Right Align</option>
+          </select>
+        </div>
+
         <!-- Filters Section -->
         <div class="pt-4 border-t border-[#2a475e]/30 space-y-4">
           <span class="block text-[11px] font-bold uppercase tracking-wider text-zinc-500">Pixel Adjustments</span>
@@ -504,7 +737,7 @@
           <p class="text-xs text-zinc-400">Real-time simulation rendered in the native Steam browser styles.</p>
         </div>
         <div class="flex gap-2">
-          <button on:click={copyFullAscii} class="glow-btn px-4 py-2 rounded-xl text-xs flex items-center gap-2" disabled={!imageEl}>
+          <button on:click={copyFullAscii} class="glow-btn px-4 py-2 rounded-xl text-xs flex items-center gap-2" disabled={inputMode === 'image' && !imageEl}>
             {#if copySuccessFull}
               ✓ Copied Full Art!
             {:else}
@@ -541,19 +774,19 @@
         </div>
         
         <!-- Renders the actual monospace container -->
-        {#if imageEl}
+        {#if imageEl || inputMode === 'text'}
           <div class="steam-textbox-simulator">
             <pre class="ascii-container select-all">{fullAsciiText}</pre>
           </div>
         {:else}
           <div class="h-64 flex flex-col items-center justify-center text-center p-8 text-zinc-500 text-xs border border-dashed border-[#2a475e]/40 rounded-xl">
-            <span>No image loaded. Please upload a file to begin generating.</span>
+            <span>No input loaded. Please upload an image or type text to begin generating.</span>
           </div>
         {/if}
       </div>
 
       <!-- Keyboard Copy Assistant Dashboard -->
-      {#if imageEl}
+      {#if imageEl || inputMode === 'text'}
         <div class="glass-panel rounded-2xl p-6 space-y-4">
           <div class="flex items-center justify-between flex-wrap gap-3">
             <div class="space-y-0.5">
