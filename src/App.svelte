@@ -25,6 +25,8 @@
   let textOutline = false;
   let textOutlineWidth = 2;
   let textBorder = false;
+  let enableBbcodeStretch = false;
+  let bbcodeUrl = 'https://github.com/ElderWook/SteamASCIIGen';
 
 
   // Output
@@ -385,7 +387,14 @@
   }
 
   function copyFullAscii() {
-    copyToClipboard(fullAsciiText).then(() => {
+    let textToCopy;
+    if (enableBbcodeStretch) {
+      const urlText = bbcodeUrl || 'https://github.com/ElderWook/SteamASCIIGen';
+      textToCopy = asciiLines.map(line => `[url=${urlText}]${line}[/url]`).join('\n');
+    } else {
+      textToCopy = fullAsciiText;
+    }
+    copyToClipboard(textToCopy).then(() => {
       copySuccessFull = true;
       setTimeout(() => copySuccessFull = false, 2000);
     });
@@ -394,7 +403,11 @@
   function copyLine(index) {
     if (index < 0 || index >= asciiLines.length) return;
     
-    const lineText = asciiLines[index];
+    let lineText = asciiLines[index];
+    if (enableBbcodeStretch) {
+      const urlText = bbcodeUrl || 'https://github.com/ElderWook/SteamASCIIGen';
+      lineText = `[url=${urlText}]${lineText}[/url]`;
+    }
     
     copyToClipboard(lineText).then(() => {
       copySuccessLine = index;
@@ -445,6 +458,39 @@
       window.removeEventListener('keydown', handleKeydown);
     };
   });
+
+  // Steam BBCode Live Compiler
+  function compileBBCode(text) {
+    // 1. Sanitize direct HTML insertions to isolate rendering vectors
+    let html = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    // 2. Handle Carriage Returns / Linebreaks
+    html = html.replace(/\n/g, "<br>");
+
+    // 3. Process Header Components [h1]
+    html = html.replace(/\[h1\](.*?)\[\/h1\]/gi, '<div class="bbcode_h1">$1</div>');
+
+    // 4. Structural Text Decorations [b], [i], [u]
+    html = html.replace(/\[b\](.*?)\[\/b\]/gi, '<span class="bbcode_b">$1</span>');
+    html = html.replace(/\[i\](.*?)\[\/i\]/gi, '<span class="bbcode_i">$1</span>');
+    html = html.replace(/\[u\](.*?)\[\/u\]/gi, '<span class="bbcode_u">$1</span>');
+
+    // 5. The Link Compiler (The core vector for horizontal box expansion)
+    html = html.replace(/\[url=(.*?)\](.*?)\[\/url\]/gi, '<a href="$1" class="bbcode_url" target="_blank" rel="noopener">$2</a>');
+    html = html.replace(/\[url\](.*?)\[\/url\]/gi, '<a href="$1" class="bbcode_url" target="_blank" rel="noopener">$1</a>');
+
+    return html;
+  }
+
+  // Reactive compiled preview generator
+  $: compiledHtml = compileBBCode(
+    enableBbcodeStretch
+      ? asciiLines.map(line => `[url=${bbcodeUrl || 'https://github.com/ElderWook/SteamASCIIGen'}]${line}[/url]`).join('\n')
+      : fullAsciiText
+  );
 </script>
 
 <div class="min-h-screen pb-16">
@@ -615,7 +661,7 @@
             id="slider-width"
             type="range" 
             min="20" 
-            max="100" 
+            max="150" 
             bind:value={asciiWidth} 
             class="w-full h-1 bg-[#101822] rounded-lg appearance-none cursor-pointer accent-[#66c0f4]" 
           />
@@ -623,6 +669,36 @@
             <span>Narrower</span>
             <span>Blocks: 46-47 | Braille: 60-63</span>
             <span>Wider</span>
+          </div>
+
+          <!-- Resolution Target Presets -->
+          <div class="space-y-1 mt-1.5">
+            <span class="block text-[9px] text-zinc-500 font-bold uppercase tracking-wider">Resolution Width Presets</span>
+            <div class="grid grid-cols-3 gap-1.5">
+              <button 
+                type="button" 
+                on:click={() => asciiWidth = selectedPaletteKey === 'braille' ? 60 : 46}
+                class="px-1.5 py-1 text-[9px] font-semibold bg-[#1b2838] border border-[#2a475e] text-zinc-300 hover:text-white rounded transition-colors"
+              >
+                Standard
+              </button>
+              <button 
+                type="button" 
+                on:click={() => asciiWidth = selectedPaletteKey === 'braille' ? 100 : 75}
+                class="px-1.5 py-1 text-[9px] font-semibold bg-[#1b2838] border border-[#2a475e] text-zinc-300 hover:text-white rounded transition-colors"
+                title="Exploit stretched info box on 1080p displays"
+              >
+                1080p Stretch
+              </button>
+              <button 
+                type="button" 
+                on:click={() => asciiWidth = selectedPaletteKey === 'braille' ? 133 : 100}
+                class="px-1.5 py-1 text-[9px] font-semibold bg-[#1b2838] border border-[#2a475e] text-zinc-300 hover:text-white rounded transition-colors"
+                title="Exploit stretched info box on 1440p displays"
+              >
+                1440p Stretch
+              </button>
+            </div>
           </div>
           {#if (selectedPaletteKey === 'braille' && asciiWidth > 60) || (selectedPaletteKey !== 'braille' && asciiWidth > 47)}
             <div class="text-[10px] text-amber-400 font-medium bg-amber-400/10 border border-amber-400/20 px-2.5 py-1.5 rounded-lg flex items-center gap-1.5 mt-2">
@@ -724,6 +800,26 @@
               Trim Trailing Spaces
             </label>
           </div>
+
+          <!-- BBCode Stretch Exploit Section -->
+          <div class="pt-3 border-t border-[#2a475e]/30 space-y-2.5">
+            <label class="flex items-center gap-2 text-xs text-zinc-400 cursor-pointer">
+              <input type="checkbox" bind:checked={enableBbcodeStretch} class="rounded border-[#2a475e] bg-[#101822] text-[#66c0f4] focus:ring-0" />
+              <span class="text-zinc-300 font-medium">Enable BBCode URL Stretch</span>
+            </label>
+            {#if enableBbcodeStretch}
+              <div class="space-y-1">
+                <label for="bbcode-url-input" class="block text-[10px] text-zinc-500 font-semibold uppercase tracking-wider">Redirect Link URL</label>
+                <input 
+                  id="bbcode-url-input"
+                  type="text" 
+                  bind:value={bbcodeUrl} 
+                  placeholder="https://..."
+                  class="w-full text-xs bg-[#101822] border border-[#2a475e]/60 rounded-lg p-2.5 text-white outline-none focus:border-[#66c0f4]"
+                />
+              </div>
+            {/if}
+          </div>
         </div>
       </div>
     </div>
@@ -759,11 +855,11 @@
         </div>
       {/if}
 
-      <!-- Steam Custom Info Box Simulator -->
-      <div class="bg-[#171a21] border border-[#2a475e]/40 rounded-2xl p-6 shadow-2xl relative">
+      <!-- Steam Custom Info Box Simulator Sandbox -->
+      <div class="bg-[#171a21] border border-[#2a475e]/40 rounded-2xl p-6 shadow-2xl relative overflow-x-auto">
         <!-- Steam info box header mock -->
         <div class="flex items-center justify-between pb-3 border-b border-[#2a475e]/30 mb-4 text-xs font-semibold text-[#66c0f4]">
-          <span>CUSTOM INFO BOX</span>
+          <span>CUSTOM INFO BOX VIEWPORT</span>
           <div class="flex items-center gap-3 text-zinc-500 font-mono">
             <span>{asciiWidth} columns × {asciiLines.length} rows</span>
             <span>•</span>
@@ -773,10 +869,17 @@
           </div>
         </div>
         
-        <!-- Renders the actual monospace container -->
+        <!-- Renders the 1:1 Sandbox -->
         {#if imageEl || inputMode === 'text'}
-          <div class="steam-textbox-simulator">
-            <pre class="ascii-container select-all">{fullAsciiText}</pre>
+          <div class="profile_customization_area">
+            <div class="profile_customization_block">
+              <div class="profile_customization_header">Custom Info Box</div>
+              <div class="profile_customization_description">
+                <div class="bbcode_container">
+                  {@html compiledHtml}
+                </div>
+              </div>
+            </div>
           </div>
         {:else}
           <div class="h-64 flex flex-col items-center justify-center text-center p-8 text-zinc-500 text-xs border border-dashed border-[#2a475e]/40 rounded-xl">
@@ -862,28 +965,6 @@
 </div>
 
 <style>
-  /* Monospace viewer styling targeting Steam's text rendering properties */
-  .steam-textbox-simulator {
-    background-color: #101822;
-    border: 1px solid #2a475e;
-    border-radius: 8px;
-    padding: 16px;
-    overflow-x: auto;
-  }
-
-  .ascii-container {
-    margin: 0;
-    font-family: 'JetBrains Mono', 'Courier New', Courier, monospace;
-    font-size: 13px;
-    line-height: 1.15;
-    letter-spacing: 0.05em;
-    color: var(--steam-accent);
-    white-space: pre;
-    tab-size: 4;
-    word-break: keep-all;
-    word-wrap: normal;
-  }
-
   /* Focus ring for active copy list items */
   select:focus, input[type="range"]:focus {
     box-shadow: 0 0 10px rgba(102, 192, 244, 0.4);
