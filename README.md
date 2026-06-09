@@ -26,6 +26,7 @@
 :                                                                         :
 ···········································································                        
 ```
+NOT FINISHED, NOT EVEN BETA
 An open-source, lightweight web utility designed to solve the frustrating formatting limits of Steam's profile showcase "Custom Info Boxes". 
 
 Try the live version or run it locally in under a minute.
