@@ -1,4 +1,4 @@
-#
+# SteamASCIIGen
 ```
 ···········································································
 :                                                                         :
@@ -26,10 +26,11 @@
 :                                                                         :
 ···········································································                        
 ```
-NOT FINISHED, NOT EVEN BETA
-An open-source, lightweight web utility designed to solve the frustrating formatting limits of Steam's profile showcase "Custom Info Boxes". 
+> ⚠️ **Status: pre-alpha** — not finished, not even beta.
 
-Try the live version or run it locally in under a minute.
+An open-source, lightweight web utility designed to solve the frustrating formatting limits of Steam's profile showcase "Custom Info Boxes".
+
+Run it locally in under a minute (see Quick Start below).
 
 ## The Problem
 Steam's profile showcases render standard text using variable-width (non-monospaced) fonts. Because spaces, letters, and punctuation have different pixel widths, traditional ASCII art skews, stretches, or compresses when pasted into a Steam showcase.
