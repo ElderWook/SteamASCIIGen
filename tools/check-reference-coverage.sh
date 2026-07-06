@@ -95,6 +95,53 @@ if [ "$HAVE_GIT" = 1 ] && [ -f "docs/STATUS.md" ]; then
     fi
 fi
 
+# Check relative markdown links resolve (non-template .md only)
+echo ""
+echo "--- verifying relative markdown links ---"
+link_ok=1
+while IFS= read -r f; do
+    [ -f "$f" ] || continue
+    dir="$(dirname "$f")"
+    # Find all links of format ](target)
+    links="$(grep -oE '\]\([^)]+\)' "$f" 2>/dev/null | sed -e 's/^](//' -e 's/)$//' | sort -u || true)"
+    while IFS= read -r link; do
+        [ -n "$link" ] || continue
+        case "$link" in
+            http://*|https://*|mailto:*|\#*) continue ;;
+        esac
+        target="${link%%#*}"
+        [ -n "$target" ] || continue
+        printf '%s' "$target" | grep -q '[A-Za-z0-9]' || continue
+        
+        # Handle file:/// scheme
+        if [[ "$target" =~ ^file:///([a-zA-Z]:.*) ]]; then
+            target="${BASH_REMATCH[1]}"
+        elif [[ "$target" =~ ^file:///(.*) ]]; then
+            target="/${BASH_REMATCH[1]}"
+        fi
+        
+        # If absolute path (starts with drive letter like C: or / on Unix), use as-is
+        if [[ "$target" =~ ^[a-zA-Z]: ]] || [[ "$target" == /* ]] || [[ "$target" == \\* ]]; then
+            resolved="$target"
+        else
+            resolved="$dir/$target"
+        fi
+        
+        resolved_posix="${resolved//\\//}"
+        if [[ "$resolved_posix" =~ ^([a-zA-Z]):/ ]]; then
+            drive="${BASH_REMATCH[1]}"
+            drive="$(echo "$drive" | tr '[:upper:]' '[:lower:]')"
+            resolved_posix="/$drive/${resolved_posix:3}"
+        fi
+        
+        [ -e "$resolved_posix" ] || { fail "$f: broken link -> $link"; link_ok=0; }
+    done <<< "$links"
+done < <(find . -name '*.md' -type f ! -path '*/.git/*' ! -path '*/node_modules/*' ! -path '*/docs-template/*' ! -name '*template*' | sed 's|^\./||')
+
+if [ "$link_ok" = 1 ]; then
+    pass "all relative links in non-template .md files resolve"
+fi
+
 echo "--------------------------------------"
 echo "  backlog (missing pages): $backlog   stale: $stale   hard issues: $issues"
 if [ "$issues" -eq 0 ]; then

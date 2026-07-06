@@ -96,6 +96,48 @@ if ($haveGit -and (Test-Path 'docs/STATUS.md')) {
         Write-Host '[WARN] docs/STATUS.md last committed >3 days before HEAD - handoff may be stale (session-end step 5)' -ForegroundColor Yellow
     }
 }
+# relative markdown links resolve (non-template .md only)
+Write-Host ''
+Write-Host '--- verifying relative markdown links ---' -ForegroundColor Cyan
+$linkOk = $true
+$mdFiles = Get-ChildItem -Recurse -Filter *.md -File | Where-Object {
+    $_.FullName -notmatch '\\\.git\\' -and
+    $_.FullName -notmatch '\\node_modules\\' -and
+    $_.FullName -notmatch '\\docs-template\\' -and
+    $_.FullName -notmatch '/\.git/' -and
+    $_.FullName -notmatch '/node_modules/' -and
+    $_.FullName -notmatch '/docs-template/' -and
+    $_.Name -notmatch 'template'
+}
+foreach ($f in $mdFiles) {
+    $text = Get-Content $f.FullName -Raw -Encoding UTF8
+    $links = [regex]::Matches($text, '\]\(([^)]+)\)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
+    foreach ($link in $links) {
+        if ($link -match '^(http://|https://|mailto:|#)') { continue }
+        $target = ($link -split '#')[0]
+        if ($target -eq '') { continue }
+        if ($target -notmatch '[A-Za-z0-9]') { continue }
+        
+        # Handle file:/// scheme
+        if ($target -match '^file:///(.*)') {
+            $target = $matches[1]
+        }
+        
+        # If absolute path, use as-is; otherwise make relative to the document
+        if ($target -match '^[A-Za-z]:[/\\]' -or $target.StartsWith('/') -or $target.StartsWith('\')) {
+            $resolved = $target
+        } else {
+            $resolved = Join-Path $f.DirectoryName $target
+        }
+        
+        if (-not (Test-Path $resolved)) {
+            $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
+            Write-Host "[FAIL] ${rel}: broken link -> $link" -ForegroundColor Red
+            $issues++; $linkOk = $false
+        }
+    }
+}
+if ($linkOk) { Write-Host '[PASS] all relative links in non-template .md files resolve' -ForegroundColor Green }
 
 Write-Host '--------------------------------------' -ForegroundColor Cyan
 Write-Host "  backlog (missing pages): $backlog   stale: $stale   hard issues: $issues"

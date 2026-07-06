@@ -1,5 +1,6 @@
 ﻿{
     "name":  "SteamASCIIGen",
+    "description":  "Turns images into Steam-showcase-perfect Unicode ASCII art.",
     "track":  "app",
     "stack":  "Vite / Svelte 5 / Tailwind",
     "version":  "v0.1.0",
