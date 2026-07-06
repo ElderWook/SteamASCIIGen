@@ -1,0 +1,23 @@
+#!/usr/bin/env sh
+# OGDK pre-push hook - block a push that would leak private identity in commit
+# history. Runs ONLY check-git-identity (not the whole gate) so pushes stay fast.
+# Install via tools/install-hooks.{ps1,sh} (sets core.hooksPath=tools/hooks).
+#
+# Cross-platform note: git runs hooks through its own bundled sh on Windows too, so
+# this single sh hook serves both OSes. It invokes the .sh checker via bash - that
+# checker is READ-ONLY (it only reads git log + the markers file, never writes), so
+# running it under git's bash on Windows carries none of the NTFS-write hazard the
+# kit's no-MSYS rule guards against. Skips cleanly (exit 0) when the checker, bash,
+# or PRIVATE-MARKERS.list is absent, so a clone without them is never blocked.
+repo="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
+[ -n "$repo" ] && cd "$repo" || exit 0
+if [ -f tools/check-git-identity.sh ] && command -v bash >/dev/null 2>&1; then
+    OGDK_BANNER=1 bash tools/check-git-identity.sh
+    status=$?
+    if [ "$status" -ne 0 ]; then
+        echo "pre-push BLOCKED: commit author/committer identity matches a private marker (see above)." 1>&2
+        echo "Rewrite history before pushing. Override only if you are sure: git push --no-verify" 1>&2
+    fi
+    exit $status
+fi
+exit 0
