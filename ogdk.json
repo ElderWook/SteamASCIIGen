@@ -1,0 +1,9 @@
+﻿{
+    "name":  "SteamASCIIGen",
+    "track":  "app",
+    "stack":  "Vite / Svelte 5 / Tailwind",
+    "version":  "v0.1.0",
+    "kitVersion":  "v0.2.0-beta 3bfc162 2026-07-06",
+    "scaffolded":  "2026-06-25",
+    "framework":  "Svelte 5 + Vite"
+}
