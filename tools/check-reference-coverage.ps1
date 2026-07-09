@@ -78,7 +78,7 @@ if ($backlog -gt 0) {
 }
 # Learning-loop nudge: count OPEN lessons (the kit-retro trigger, now mechanical)
 if (Test-Path 'docs/LESSONS.md') {
-    $openLessons = @(Get-Content 'docs/LESSONS.md' -Encoding UTF8 | Where-Object { $_ -cmatch 'Status:.*OPEN' }).Count
+    $openLessons = @(Get-Content 'docs/LESSONS.md' -Encoding UTF8 | Where-Object { $_ -cmatch '\*\*Status:\*\*\s*OPEN' }).Count  # canonical lesson-status grammar (report-snag writer)
     if ($openLessons -ge 5) {
         Write-Host "[WARN] $openLessons OPEN lesson(s) in docs/LESSONS.md - run the kit-retro skill (threshold: 5)" -ForegroundColor Yellow
     } elseif ($openLessons -gt 0) {
@@ -111,6 +111,11 @@ $mdFiles = Get-ChildItem -Recurse -Filter *.md -File | Where-Object {
 }
 foreach ($f in $mdFiles) {
     $text = Get-Content $f.FullName -Raw -Encoding UTF8
+    # IGNORE links inside fenced code blocks and inline `code` spans - those are
+    # illustrative examples, not navigable links (e.g. the sample relative link in
+    # DOCUMENTATION-VERSIONING-GUIDE). Strip code first, then extract links.
+    $text = [regex]::Replace($text, '(?s)```.*?```', '')
+    $text = [regex]::Replace($text, '`[^`]*`', '')
     $links = [regex]::Matches($text, '\]\(([^)]+)\)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
     foreach ($link in $links) {
         if ($link -match '^(http://|https://|mailto:|#)') { continue }

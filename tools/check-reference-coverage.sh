@@ -76,7 +76,7 @@ done < "$MANIFEST"
 
 # Learning-loop nudge: count OPEN lessons (the kit-retro trigger, now mechanical)
 if [ -f "docs/LESSONS.md" ]; then
-    open_lessons=$(grep -c 'Status:.*OPEN' docs/LESSONS.md 2>/dev/null || true)  # no '|| echo 0': grep -c prints 0 AND exits 1 on no match (2026-06-11 lesson)
+    open_lessons=$(grep -cE '\*\*Status:\*\*[[:space:]]*OPEN' docs/LESSONS.md 2>/dev/null || true)  # canonical grammar; no '|| echo 0': grep -c prints 0 AND exits 1 on no match (2026-06-11 lesson)
     open_lessons=${open_lessons:-0}
     if [ "$open_lessons" -ge 5 ]; then
         warn "$open_lessons OPEN lesson(s) in docs/LESSONS.md - run the kit-retro skill (threshold: 5)"
@@ -102,8 +102,12 @@ link_ok=1
 while IFS= read -r f; do
     [ -f "$f" ] || continue
     dir="$(dirname "$f")"
-    # Find all links of format ](target)
-    links="$(grep -oE '\]\([^)]+\)' "$f" 2>/dev/null | sed -e 's/^](//' -e 's/)$//' | sort -u || true)"
+    # Find all links of format ](target), but IGNORE links inside fenced code
+    # blocks and inline `code` spans - those are illustrative examples, not
+    # navigable links (e.g. the DOCUMENTATION-VERSIONING-GUIDE shows a sample
+    # relative link inside backticks). Strip code first, then extract links.
+    stripped="$(awk 'BEGIN{fence=0} /^[[:space:]]*```/{fence=!fence; next} fence{next} {gsub(/`[^`]*`/,""); print}' "$f" 2>/dev/null)"
+    links="$(printf '%s\n' "$stripped" | grep -oE '\]\([^)]+\)' | sed -e 's/^](//' -e 's/)$//' | sort -u || true)"
     while IFS= read -r link; do
         [ -n "$link" ] || continue
         case "$link" in
