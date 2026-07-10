@@ -27,6 +27,12 @@ repo="$(git rev-parse --show-toplevel 2>/dev/null)" || exit 0
 # available; skips cleanly otherwise so a fresh clone is never blocked on it.
 # (The integrity gate below is independent of markers and always runs.)
 markfile="tools/PRIVATE-MARKERS.list"
+# Per-repo allowlist: markers that are legitimately part of THIS repo's own content -
+# typically its own project name, which the shared per-owner marker list also names to keep
+# it OUT of the kit. Tracked (its own name is already all over the repo), so it travels to
+# every clone. NEVER list a genuine leak here. The kit itself carries no allow file, so its
+# scan stays absolute.
+allowfile="tools/PRIVATE-MARKERS.allow"
 if [ -f "$markfile" ] && command -v grep >/dev/null 2>&1; then
 
 # Identity that will author this commit (fail fast before a bad author is baked in).
@@ -35,7 +41,7 @@ identity="$(printf '%s %s' "$(git config user.name 2>/dev/null)" "$(git config u
 # Staged content (added/copied/modified only). The gitignored private lists are
 # excluded - they legitimately contain the markers we scan FOR.
 staged="$(git diff --cached --name-only --diff-filter=ACM 2>/dev/null \
-            | grep -Ev '(^|/)(PRIVATE-MARKERS\.list|TARGETS\.list|user-notes\.local\.md)$' || true)"
+            | grep -Ev '(^|/)(PRIVATE-MARKERS\.(list|allow)|TARGETS\.list|user-notes\.local\.md)$' || true)"
 
 issues=0
 midx=0
@@ -43,6 +49,10 @@ while IFS= read -r raw || [ -n "$raw" ]; do
     m="$(printf '%s' "$raw" | tr -d '\r' | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')"
     case "$m" in ''|'#'*) continue ;; esac
     midx=$((midx + 1))
+    # per-repo allowlist: skip a marker this repo legitimately owns (CR-tolerant, whole-line)
+    if [ -f "$allowfile" ] && tr -d '\r' < "$allowfile" | grep -qixF -- "$m" 2>/dev/null; then
+        continue
+    fi
     ml="$(printf '%s' "$m" | tr '[:upper:]' '[:lower:]')"
 
     # 1. current git identity
