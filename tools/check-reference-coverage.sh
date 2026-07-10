@@ -112,6 +112,9 @@ while IFS= read -r f; do
         [ -n "$link" ] || continue
         case "$link" in
             http://*|https://*|mailto:*|\#*) continue ;;
+            file:///*|[A-Za-z]:[/\\]*)
+                # non-portable: file:/// URI or drive-letter path never resolves on another OS - hard FAIL
+                fail "$f: non-portable link (file:/// or drive-letter path) -> $link"; link_ok=0; continue ;;
         esac
         target="${link%%#*}"
         [ -n "$target" ] || continue

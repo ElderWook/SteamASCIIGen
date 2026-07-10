@@ -119,6 +119,12 @@ foreach ($f in $mdFiles) {
     $links = [regex]::Matches($text, '\]\(([^)]+)\)') | ForEach-Object { $_.Groups[1].Value } | Sort-Object -Unique
     foreach ($link in $links) {
         if ($link -match '^(http://|https://|mailto:|#)') { continue }
+        # non-portable: a file:/// URI or drive-letter absolute path never resolves on another OS - hard FAIL
+        if ($link -match '^file:///' -or $link -match '^[A-Za-z]:[\\/]') {
+            $rel = $f.FullName.Substring($repoRoot.Length + 1).Replace('\', '/')
+            Write-Host "[FAIL] ${rel}: non-portable link (file:/// or drive-letter path) -> $link" -ForegroundColor Red
+            $issues++; $linkOk = $false; continue
+        }
         $target = ($link -split '#')[0]
         if ($target -eq '') { continue }
         if ($target -notmatch '[A-Za-z0-9]') { continue }
