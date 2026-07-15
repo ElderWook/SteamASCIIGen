@@ -1,0 +1,9 @@
+---
+description: Read this repo's rules before any action (OGDK app-track scaffold)
+alwaysApply: true
+---
+
+Read `AGENTS.md` in full before any edits. This is a **dormant app-track scaffold** (Svelte 5 +
+Vite + Tailwind) — the `docs/` session chain isn't built yet; scaffold `docs/00-START-HERE.md` +
+`docs/STATUS.md` from the OGDK app-track template when resuming real work. Build check:
+`npm run build`. `AGENTS.md` wins over any global/user config on conflict.
