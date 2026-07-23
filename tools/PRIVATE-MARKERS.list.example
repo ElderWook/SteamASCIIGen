@@ -1,0 +1,5 @@
+# PRIVATE-MARKERS.list.example — copy to PRIVATE-MARKERS.list (gitignored) and fill in.
+# One marker per line; '#' = comment. Case-insensitive substring match; the scan never
+# echoes the marker text. Add your real personal markers: personal email(s), legal name,
+# private codenames. Do NOT add your public handle or noreply email (public by design),
+# and avoid short strings (e.g. 'ew') that match innocuous words like 'new'/'view'.

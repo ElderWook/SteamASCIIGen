@@ -22,3 +22,6 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# per-owner private markers — gitignored; copy the .example and fill in locally
+tools/PRIVATE-MARKERS.list
